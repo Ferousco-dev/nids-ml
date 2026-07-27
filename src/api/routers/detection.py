@@ -29,6 +29,7 @@ def _to_response(result: DetectionResult, severity: str | None) -> DetectionResp
         is_attack=result.is_attack,
         severity=severity,
         timestamp=result.timestamp,
+        defaulted_features=result.defaulted_features,
         class_probabilities=result.class_probabilities,
     )
 

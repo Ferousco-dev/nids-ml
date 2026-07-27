@@ -43,9 +43,17 @@ def test_predict_one_rejects_non_mapping(engine) -> None:
         engine.predict_one([1, 2, 3])
 
 
-def test_predict_rejects_missing_features(engine) -> None:
+def test_partial_flow_is_filled_with_training_defaults(engine) -> None:
+    result = engine.predict_one({"duration": 1.0, "protocol_type": "tcp", "count": 300})
+    assert result.predicted_class in engine.class_names
+
+
+def test_strict_engine_rejects_missing_features(model_bundle) -> None:
+    from src.detection.engine import DetectionEngine
+
+    strict = DetectionEngine(model_bundle, fill_missing=False)
     with pytest.raises(ValidationError):
-        engine.predict_one({"duration": 1.0})
+        strict.predict_one({"duration": 1.0})
 
 
 def test_confidence_threshold_controls_flagging(model_bundle, raw_dataset: pd.DataFrame) -> None:

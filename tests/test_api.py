@@ -80,8 +80,10 @@ def test_detect_rejects_invalid_payload(client: TestClient, flow_payload: dict) 
     assert client.post("/detect", json=invalid).status_code == 422
 
 
-def test_detect_rejects_unknown_flow_shape(client: TestClient) -> None:
-    assert client.post("/detect", json={"duration": 1.0}).status_code == 422
+def test_detect_accepts_partial_flow(client: TestClient) -> None:
+    response = client.post("/detect", json={"duration": 1.0, "count": 300})
+    assert response.status_code == 200
+    assert response.json()["predicted_class"]
 
 
 def test_detect_batch(client: TestClient, raw_dataset: pd.DataFrame) -> None:

@@ -31,6 +31,7 @@ class DetectionResult:
     timestamp: str
     class_probabilities: dict[str, float] = field(default_factory=dict)
     flow_summary: dict[str, Any] = field(default_factory=dict)
+    defaulted_features: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -38,6 +39,7 @@ class DetectionResult:
             "confidence": round(self.confidence, 6),
             "is_attack": self.is_attack,
             "timestamp": self.timestamp,
+            "defaulted_features": self.defaulted_features,
             "class_probabilities": {k: round(v, 6) for k, v in self.class_probabilities.items()},
             "flow_summary": self.flow_summary,
         }
@@ -58,10 +60,12 @@ class DetectionEngine:
         bundle: ModelBundle,
         confidence_threshold: float = 0.7,
         apply_feature_engineering: bool = True,
+        fill_missing: bool = True,
     ) -> None:
         self.bundle = bundle
         self.confidence_threshold = confidence_threshold
         self.apply_feature_engineering = apply_feature_engineering
+        self.fill_missing = fill_missing
         self.preprocessor = bundle.preprocessor
         self.feature_names = bundle.metadata.feature_names
         self.class_names = bundle.metadata.class_names
@@ -77,11 +81,24 @@ class DetectionEngine:
         registry = ModelRegistry(registry_root)
         return cls(registry.load(model_path), confidence_threshold=confidence_threshold)
 
+    def count_defaulted(self, frame: pd.DataFrame) -> int:
+        """Number of model inputs absent from the caller's flow record."""
+        if self.preprocessor is None:
+            return 0
+        expected = getattr(self.preprocessor, "defaults", {})
+        return sum(1 for column in expected if column not in frame.columns)
+
     def _prepare(self, frame: pd.DataFrame) -> pd.DataFrame:
         validate_dataframe(frame)
-        prepared = engineer_features(frame) if self.apply_feature_engineering else frame
+        prepared = frame
+        if self.preprocessor is not None and self.fill_missing:
+            prepared = self.preprocessor.fill_defaults(prepared)
+        if self.apply_feature_engineering:
+            prepared = engineer_features(prepared)
         if self.preprocessor is not None:
-            prepared = self.preprocessor.transform_features(prepared)
+            prepared = self.preprocessor.transform_features(
+                prepared, fill_missing=self.fill_missing
+            )
         missing = [name for name in self.feature_names if name not in prepared.columns]
         if missing:
             raise ValidationError(f"Missing model feature(s): {', '.join(missing[:10])}")
@@ -94,6 +111,9 @@ class DetectionEngine:
 
     def predict_frame(self, frame: pd.DataFrame) -> list[DetectionResult]:
         """Run detection over every row of a flow frame."""
+        defaulted = self.count_defaulted(frame)
+        if defaulted:
+            log.debug("{} model input(s) absent from the flow; training defaults applied", defaulted)
         prepared = self._prepare(frame)
         matrix = prepared.to_numpy(dtype=np.float64)
         predictions = np.asarray(self.bundle.estimator.predict(matrix))
@@ -122,6 +142,7 @@ class DetectionEngine:
                     timestamp=timestamp,
                     class_probabilities=distribution,
                     flow_summary=_summarise(raw_records[position]),
+                    defaulted_features=defaulted,
                 )
             )
         return results

@@ -51,6 +51,9 @@ class DetectionResponse(BaseModel):
     is_attack: bool
     severity: str | None = None
     timestamp: str
+    defaulted_features: int = Field(
+        0, description="Model inputs absent from the request and filled with training defaults"
+    )
     class_probabilities: dict[str, float] = Field(default_factory=dict)
 
 

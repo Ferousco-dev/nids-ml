@@ -75,22 +75,25 @@ Interactive documentation is then available at `http://localhost:8000/docs`.
 | GET    | `/health`        | Service status and the model currently served       |
 | GET    | `/metrics`       | Prometheus-style counters                           |
 
+With the API running, the quickest way to see it work is to replay real labelled flows through it:
+
 ```bash
-curl -X POST http://localhost:8000/detect -H 'Content-Type: application/json' -d '{"duration": 0.0, "protocol_type": "icmp", "service": "ecr_i", "flag": "S0", "src_bytes": 20, "dst_bytes": 0, "count": 511, "srv_count": 511, "serror_rate": 1.0, "dst_host_serror_rate": 1.0}'
+python scripts/demo_detect.py --per-class 3
 ```
 
-```json
-{
-  "predicted_class": "dos",
-  "confidence": 0.99997,
-  "is_attack": true,
-  "severity": "CRITICAL",
-  "timestamp": "2026-07-27T22:39:48.830525+00:00"
-}
+```
+TRUE    PREDICTED   CONFIDENCE   SEVERITY   RESULT
+dos     dos         1.0000       CRITICAL   correct
+normal  normal      1.0000       -          correct
+probe   probe       0.9999       CRITICAL   correct
+r2l     r2l         0.9998       CRITICAL   correct
+u2r     u2r         0.9968       CRITICAL   correct
 ```
 
-Any flow field the trained model expects may be supplied; unknown extras are ignored and absent
-engineered features are derived automatically.
+Absent fields are filled with the values learned during training, and the response reports how many
+were substituted via `defaulted_features`. Treat a non-zero count as a warning: the error-rate and
+connection-count features carry most of the discriminative signal, so a sparse flow will usually be
+classified as normal regardless of intent. Send complete flow records for meaningful verdicts.
 
 ## Dataset
 

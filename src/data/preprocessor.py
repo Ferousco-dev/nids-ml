@@ -52,6 +52,7 @@ class FlowPreprocessor:
         self.feature_names: list[str] = []
         self.medians: pd.Series | None = None
         self.category_levels: dict[str, list[str]] = {}
+        self.defaults: dict[str, Any] = {}
         self.fitted = False
 
     def _split_columns(self, frame: pd.DataFrame) -> tuple[list[str], list[str]]:
@@ -100,6 +101,11 @@ class FlowPreprocessor:
             for column in self.categorical_columns
         }
 
+        self.defaults = {column: float(value) for column, value in self.medians.items()}
+        for column, levels in self.category_levels.items():
+            mode = frame[column].astype("object").mode()
+            self.defaults[column] = mode.iloc[0] if not mode.empty else levels[0]
+
         encoded = self._encode(frame)
         self.feature_names = encoded.columns.tolist()
 
@@ -117,11 +123,29 @@ class FlowPreprocessor:
         )
         return self
 
-    def transform_features(self, frame: pd.DataFrame) -> pd.DataFrame:
-        """Transform a frame into the fitted feature space."""
+    def fill_defaults(self, frame: pd.DataFrame) -> pd.DataFrame:
+        """Add any absent input columns using the values learned during fitting."""
+        missing = [column for column in self.defaults if column not in frame.columns]
+        if not missing:
+            return frame
+        filled = frame.copy()
+        for column in missing:
+            filled[column] = self.defaults[column]
+        log.debug("Filled {} absent input column(s) with training defaults", len(missing))
+        return filled
+
+    def transform_features(self, frame: pd.DataFrame, fill_missing: bool = False) -> pd.DataFrame:
+        """Transform a frame into the fitted feature space.
+
+        With ``fill_missing`` set, columns absent from the input are populated
+        with the training median (numeric) or most frequent value (categorical)
+        instead of raising, which lets callers submit partial flow records.
+        """
         if not self.fitted:
             raise ValidationError("Preprocessor must be fitted before calling transform_features")
         validate_dataframe(frame)
+        if fill_missing:
+            frame = self.fill_defaults(frame)
 
         missing = [
             column
