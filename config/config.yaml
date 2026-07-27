@@ -1,0 +1,65 @@
+app:
+  name: "NIDS-ML"
+  version: "0.1.0"
+  debug: false
+
+data:
+  raw_path: "data/raw"
+  processed_path: "data/processed"
+  test_size: 0.15
+  val_size: 0.15
+  random_state: 42
+
+features:
+  target_column: "label"
+  drop_columns: []
+  selection_method: "mutual_info"
+  top_k: 30
+
+models:
+  random_forest:
+    n_estimators: 200
+    max_depth: 20
+    random_state: 42
+  xgboost:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+    random_state: 42
+  logistic_regression:
+    max_iter: 1000
+    random_state: 42
+
+detection:
+  confidence_threshold: 0.7
+  batch_size: 100
+  model_path: "models/best_model.pkl"
+
+alerting:
+  severity_thresholds:
+    low: 0.5
+    medium: 0.7
+    high: 0.85
+    critical: 0.95
+  rate_limit:
+    window_seconds: 60
+    max_alerts: 5
+  channels:
+    - console
+    - file
+  webhook_url: ""
+  alert_log_path: "logs/alerts.log"
+
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  json_format: false
+  rotation: "10 MB"
+  retention: "14 days"
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  cors_origins:
+    - "*"
