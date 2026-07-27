@@ -27,7 +27,8 @@ flowchart LR
     D --> I[FastAPI<br/>/detect, /health, /metrics]
 ```
 
-Full component detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Full component detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); step-by-step operating
+instructions are in [docs/USAGE.md](docs/USAGE.md).
 
 ## Installation
 
